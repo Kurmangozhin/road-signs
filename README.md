@@ -1,4 +1,4 @@
-# road-signs yolo4-darknet
+# road-signs yolo4
 recognition Road signs
 
 # Classes:

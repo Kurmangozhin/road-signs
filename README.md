@@ -3,7 +3,7 @@ recognition Road signs
 
 # Classes:
 
-## 'crosswalk'
-## 'trafficlight'
-## 'speedlimit'
-## 'stop'
+### 1.'crosswalk'
+### 2.'trafficlight'
+### 3.'speedlimit'
+### 4.'stop'

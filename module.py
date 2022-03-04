@@ -9,13 +9,25 @@ parser = argparse.ArgumentParser("roads")
 parser.add_argument('-i',"--input", type = str, required = True, default = False, help = "path image ...")
 logging.basicConfig(filename=f'log/ocr.log', filemode='w', format='%(asctime)s - %(message)s', level = logging.INFO, datefmt='%d-%b-%y %H:%M:%S')
 
+providers = [
+    ('CUDAExecutionProvider', {
+        'device_id': 0,
+        'arena_extend_strategy': 'kNextPowerOfTwo',
+        'gpu_mem_limit': 2 * 1024 * 1024 * 1024,
+        'cudnn_conv_algo_search': 'EXHAUSTIVE',
+        'do_copy_in_default_stream': True,
+    }),
+    'CPUExecutionProvider',
+]
+
+
 
 
 class Detection(Processing):
     def __init__(self, path_model:str, path_classes:str, image_shape:list, padding:int):
         self.path_model   = path_model
         self.path_classes = path_classes
-        self.session = onnxruntime.InferenceSession(self.path_model)
+        self.session = onnxruntime.InferenceSession(self.path_model, providers = providers)
         self.class_labels, self.num_names = self.get_classes(self.path_classes)
         self.image_shape = image_shape
         self.font = ImageFont.truetype('weights/font.otf', 12)
@@ -53,6 +65,36 @@ class Detection(Processing):
             draw.text(text_origin, label, fill = (255,255,0), font = self.font)      
             del draw
         return np.array(image_pred)
+
+
+
+    def draw_line(self, image, x, y, x1, y1, color, l = 15, t = 2):
+        cv2.line(image, (x, y), (x + l, y), color, t)
+        cv2.line(image, (x, y), (x, y + l), color, t)    
+        cv2.line(image, (x1, y), (x1 - l, y), color, t)
+        cv2.line(image, (x1, y), (x1, y + l), color, t)    
+        cv2.line(image, (x, y1), (x + l, y1), color, t)
+        cv2.line(image, (x, y1), (x, y1 - l), color, t)   
+        cv2.line(image, (x1, y1), (x1 - l, y1), color, t)
+        cv2.line(image, (x1, y1), (x1, y1 - l), color, t)    
+        return image
+    
+
+    def draw_visual(self, image, boxes_out, scores_out, classes_out, lines = True):
+        image = np.array(image)
+        for i, c in reversed(list(enumerate(classes_out))):
+            predicted_class = self.class_labels[c]
+            box = boxes_out[i]
+            score = scores_out[i]
+            predicted_class_label = '{}: {:.2f}%'.format(predicted_class, score*100)
+            box_color = self.class_colors[c]
+            box_color = list(map(int, box_color))
+            box = list(map(int, box))
+            y_min, x_min, y_max, x_max = box
+            cv2.rectangle(image, (x_min, y_min), (x_max, y_max), box_color, 1)
+            if lines: self.draw_line(image, x_min, y_min, x_max, y_max, box_color)
+            cv2.putText(image, predicted_class_label, (x_min, y_min-5), cv2.FONT_HERSHEY_SIMPLEX, 0.35, [255,255,0], 1)
+        return image
     
     
     
@@ -63,7 +105,7 @@ class Detection(Processing):
         image_data  = self.resize_image(image, (self.image_shape[1], self.image_shape[0]))
         image_data  = np.expand_dims(self.preprocess_input(np.array(image_data, dtype='float32')), 0)
         box_out, scores_out, classes_out = self.boxes_detection(image_data,input_image_shape)
-        image_pred = self.draw_detection(image, box_out, scores_out, classes_out)
+        image_pred = self.draw_visual(image, box_out, scores_out, classes_out)
         return image_pred
 
 
